@@ -62,6 +62,9 @@ if __name__ == "__main__":
     dqn.load('cartpole.weights.h5')
     batch_size = 32
     scores = []
+
+    #fp = open("results.txt", "a")
+
     for e in range(nb_episodes):
         mem_index = 0
         state = env.reset()
@@ -76,7 +79,7 @@ if __name__ == "__main__":
                 print(scores)
                 print("---\n" * 5)
 
-        for time in range(500): # Avoid unlimited cartpole, could use while not done for other environments
+        for time in range(501): # Avoid unlimited cartpole, could use while not done for other environments
             action = dqn.action(state)
             next_state, reward, done, _, __ = env.step(action) # Execute step
             #print("---")
@@ -95,11 +98,14 @@ if __name__ == "__main__":
                 #print("Replay -")
                 dqn.replay(batch_size)
             
-            if done:
+            if done or time == 500:
                 print("---\n" * 5)
                 print("episode: {}/{}, score: {}, e: {:.2}".format(e, nb_episodes, time, dqn.epsilon))
+                print(scores)
                 print("---\n" * 5)
                 scores.append(time)
+
+                #fp.write(str(time) + "\n")
                 break
 
             
