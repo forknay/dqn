@@ -11,6 +11,7 @@ plt.scatter(x, y)
 
 plt.xlabel("Episodes")
 plt.ylabel("Score")
+plt.ylim(0, 510)
 
 
 plt.show()
