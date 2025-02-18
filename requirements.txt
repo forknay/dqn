@@ -3,3 +3,5 @@ gym
 tensorflow
 keras
 matplotlib
+torch
+ipython
