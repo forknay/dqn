@@ -45,9 +45,9 @@ class DQN(torch.nn.Module):
     def __init__(self, nb_states, nb_actions):
         super(DQN, self).__init__()
         
-        self.layer1 = torch.nn.Linear(nb_states, 32)
-        self.layer2 = torch.nn.Linear(32, 32)
-        self.layer3 = torch.nn.Linear(32, nb_actions)
+        self.layer1 = torch.nn.Linear(nb_states, 128)
+        self.layer2 = torch.nn.Linear(128, 128)
+        self.layer3 = torch.nn.Linear(128, nb_actions)
 
     def forward(self, x):
         x = torch.nn.functional.relu(self.layer1(x))
@@ -108,9 +108,9 @@ class memory():
 
     
 nb_episodes = 1000
-capacity = 500
+capacity = 1000
 epsilon = 1.0
-epsilon_decay = 0.995
+epsilon_decay = 0.9995
 min_epsilon = 0.01 
 discount = 0.99 # Discourage taking longer than needed, doesnt really matter for cartpole since no good "end"
 tau = 0.005
@@ -156,8 +156,7 @@ if __name__ == "__main__":
             #print("Reward:", reward, "Done:", done)
             #print("Next state:", next_state, (1, nb_states))
             #print("---")
-            if done:
-                reward = -10 # Penalize falling off the cart
+             # Penalize falling off the cart
             
 
             reward = torch.tensor([reward], device="cpu")
