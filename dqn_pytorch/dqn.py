@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import matplotlib
 import matplotlib.pyplot as plt
+from collections import namedtuple
 
 
 is_ipython = 'inline' in matplotlib.get_backend()
@@ -12,6 +13,7 @@ if is_ipython:
 
 plt.ion()
 
+episode_durations = []
 def plot_durations(show_result=False):
     plt.figure(1)
     durations_t = torch.tensor(episode_durations, dtype=torch.float)
@@ -40,12 +42,12 @@ def plot_durations(show_result=False):
 
 
 class DQN(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, nb_states, nb_actions):
         super(DQN, self).__init__()
         
-        self.layer1 = torch.nn.Linear(self.nb_states, 32)
+        self.layer1 = torch.nn.Linear(nb_states, 32)
         self.layer2 = torch.nn.Linear(32, 32)
-        self.layer3 = torch.nn.Linear(32, self.nb_actions)
+        self.layer3 = torch.nn.Linear(32, nb_actions)
 
     def forward(self, x):
         x = torch.nn.functional.relu(self.layer1(x))
@@ -55,13 +57,15 @@ class DQN(torch.nn.Module):
 def action(state):
     if np.random.rand() <= epsilon:
         action = random.randrange(nb_actions)
-        print("Random action:", action.item())
+        print("Random action:", action)
         return torch.tensor([[env.action_space.sample()]], device="cpu", dtype=torch.long)
     else:
         with torch.no_grad():
-            action = policy_net(state).max(1).view(1, 1)
-            print("Predicted action: ", action.item())
+            action = policy_net(state).max(1)
+            print("Predicted action: ", action)
             return action
+        
+Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
 
 class memory():
     def __init__(self, capacity):
@@ -70,26 +74,45 @@ class memory():
 
     def replay(self, batch_size):
         batch = random.sample(self.memory, batch_size)
-        for state, action, reward, next_state, done in batch:
-            target = reward
-            if not done:
-                target = reward + discount * np.amax(self.model.predict(next_state, verbose=0)[0]) # Find the Q-value of the best next action
-            target_f = self.model.predict(state, verbose=0) # Get the current Q-values
-            #print("Reward:", reward, "Target:", target, "Target_f:", target_f)
-            target_f[0][action] = target # Update the Q-value of the chosen next action
+        batch = Transition(*zip(*batch)) #Idk man, this is just magic (unzip)
 
-            self.model.fit(state, target_f, epochs=1, verbose=0) # Train the model on the updated Q-values
+        #Compute all non final states
+        non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device="cpu", dtype=torch.bool)
+        non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
+        # Compute all replays at once rather than one by one in a for loop
+        state_batch = torch.cat(batch.state)
+        action_batch = torch.cat(batch.action)
+        reward_batch = torch.cat(batch.reward)
+        
+        # Policy net preferred action
+        state_action_values = policy_net(state_batch).gather(1, action_batch)
 
-        dqn.epsilon = max(dqn.epsilon * dqn.epsilon_decay, dqn.min_epsilon)
+        # Target net max action
+        next_state_values = torch.zeros(batch_size, device="cpu")
+        with torch.no_grad():
+            next_state_values[non_final_mask] = target_net(non_final_next_states).max(1).values
+        
+        expected_state_action_values = (next_state_values * discount) + reward_batch
+
+       #Compute loss for graph
+        loss = torch.nn.functional.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
+
+        optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
+        optimizer.step()
+
+        
+        
 
     
-nb_episodes = 1000
-memory = []
+nb_episodes = 100
 capacity = 1000
 epsilon = 1.0
 epsilon_decay = 0.995
 min_epsilon = 0.01 
 discount = 0.99 # Discourage taking longer than needed, doesnt really matter for cartpole since no good "end"
+tau = 0.005
 
 if __name__ == "__main__":
     env = gym.make('CartPole-v1')
@@ -101,6 +124,7 @@ if __name__ == "__main__":
 
     policy_net = DQN(nb_states, nb_actions).to("cpu")
     target_net = DQN(nb_states, nb_actions).to("cpu")
+    target_net.load_state_dict(policy_net.state_dict())
 
     optimizer = torch.optim.Adam(policy_net.parameters(), lr=0.001 , amsgrad=True)
     mem = memory(capacity)
@@ -114,8 +138,8 @@ if __name__ == "__main__":
         mem_index = 0
         state, info = env.reset()
         print("State:", state[0], (1, nb_states))
-        state = np.reshape(state[0], (1, nb_states))
         print("----",state)
+        state = torch.tensor(state, dtype=torch.float32, device="cpu").unsqueeze(0)
         done = False
 
         if e % 5 == 0:
@@ -125,32 +149,51 @@ if __name__ == "__main__":
                 print("---\n" * 5)
 
         for time in range(501): # Avoid unlimited cartpole, could use while not done for other environments
-            action = dqn.action(state)
-            next_state, reward, done, _, __ = env.step(action) # Execute step
+            action_taken = action(state)
+            next_state, reward, done, _, __ = env.step(action_taken.item()) # Execute step
             #print("---")
             #print("Reward:", reward, "Done:", done)
             #print("Next state:", next_state, (1, nb_states))
             #print("---")
-            next_state = np.reshape(next_state, (1, nb_states))
             if done:
                 reward = -10 # Penalize falling off the cart
 
-            dqn.memory.insert(mem_index % dqn.capacity-1, (state, action, reward, next_state, done)) # Add step to the replay memory
+            reward = torch.tensor([reward], device="cpu")
+            if done:
+                next_state = None
+            else:
+                next_state = torch.tensor(next_state, dtype=torch.float32, device="cpu").unsqueeze(0)
+            
+            mem.memory.insert(mem_index % (mem.capacity-1), (state, action_taken, next_state, reward))
             mem_index += 1
 
             state = next_state
-            if len(mem) > batch_size:
+            if len(mem.memory) > batch_size:
                 #print("Replay -")
                 mem.replay(batch_size)
+                epsilon = max(epsilon * epsilon_decay, min_epsilon)
+
+            # Update target net
+            target_net_state_dict = target_net.state_dict()
+            policy_net_state_dict = policy_net.state_dict()
+            for key in target_net_state_dict:
+                target_net_state_dict[key] = policy_net_state_dict[key]* tau + target_net_state_dict[key] * (1 - tau)
+            target_net.load_state_dict(target_net_state_dict)
             
             if done or time == 500:
+                episode_durations.append(time + 1)
+                plot_durations()
                 print("---\n" * 5)
-                print("episode: {}/{}, score: {}, e: {:.2}".format(e, nb_episodes, time, dqn.epsilon))
+                print("episode: {}/{}, score: {}, e: {:.2}".format(e, nb_episodes, time, epsilon))
                 print(scores)
                 print("---\n" * 5)
                 scores.append(time)
 
                 #fp.write(str(time) + "\n")
                 break
+print("Done")
+plot_durations(show_result=True)
+plt.ioff()
+plt.show()
 
             
