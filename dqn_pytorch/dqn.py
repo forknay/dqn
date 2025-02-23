@@ -61,7 +61,7 @@ def action(state):
         return torch.tensor([[env.action_space.sample()]], device="cpu", dtype=torch.long)
     else:
         with torch.no_grad():
-            action = policy_net(state).max(1)
+            action = policy_net(state).max(1)[1].view(1, 1)
             print("Predicted action: ", action)
             return action
         
@@ -81,6 +81,7 @@ class memory():
         non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
         # Compute all replays at once rather than one by one in a for loop
         state_batch = torch.cat(batch.state)
+        #print("Action batch:", batch.action)
         action_batch = torch.cat(batch.action)
         reward_batch = torch.cat(batch.reward)
         
@@ -106,8 +107,8 @@ class memory():
         
 
     
-nb_episodes = 100
-capacity = 1000
+nb_episodes = 1000
+capacity = 500
 epsilon = 1.0
 epsilon_decay = 0.995
 min_epsilon = 0.01 
@@ -157,6 +158,7 @@ if __name__ == "__main__":
             #print("---")
             if done:
                 reward = -10 # Penalize falling off the cart
+            
 
             reward = torch.tensor([reward], device="cpu")
             if done:
