@@ -45,9 +45,9 @@ class DQN(torch.nn.Module):
     def __init__(self, nb_states, nb_actions):
         super(DQN, self).__init__()
         
-        self.layer1 = torch.nn.Linear(nb_states, 128)
-        self.layer2 = torch.nn.Linear(128, 128)
-        self.layer3 = torch.nn.Linear(128, nb_actions)
+        self.layer1 = torch.nn.Linear(nb_states, 24)
+        self.layer2 = torch.nn.Linear(24, 24)
+        self.layer3 = torch.nn.Linear(24, nb_actions)
 
     def forward(self, x):
         x = torch.nn.functional.relu(self.layer1(x))
@@ -96,11 +96,11 @@ class memory():
         expected_state_action_values = (next_state_values * discount) + reward_batch
 
        #Compute loss for graph
-        loss = torch.nn.functional.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
+        loss = torch.nn.functional.mse_loss(state_action_values, expected_state_action_values.unsqueeze(1))
 
         optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
+        # torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
         optimizer.step()
 
         
@@ -158,7 +158,9 @@ if __name__ == "__main__":
             #print("---")
              # Penalize falling off the cart
             
-
+            if done:
+                reward = -10
+            
             reward = torch.tensor([reward], device="cpu")
             if done:
                 next_state = None
@@ -177,9 +179,9 @@ if __name__ == "__main__":
             # Update target net
             target_net_state_dict = target_net.state_dict()
             policy_net_state_dict = policy_net.state_dict()
-            for key in target_net_state_dict:
-                target_net_state_dict[key] = policy_net_state_dict[key]* tau + target_net_state_dict[key] * (1 - tau)
-            target_net.load_state_dict(target_net_state_dict)
+            # for key in target_net_state_dict:
+            #     target_net_state_dict[key] = policy_net_state_dict[key]* tau + target_net_state_dict[key] * (1 - tau)
+            target_net.load_state_dict(policy_net_state_dict)
             
             if done or time == 500:
                 episode_durations.append(time + 1)
