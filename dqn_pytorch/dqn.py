@@ -55,10 +55,10 @@ class DQN(torch.nn.Module):
         return self.layer3(x) 
     
 def action(state):
+    action = env.action_space.sample()  # Random action
+    print("Random action: ", action)
     if np.random.rand() <= epsilon:
-        action = random.randrange(nb_actions)
-        print("Random action:", action)
-        return torch.tensor([[env.action_space.sample()]], device="cpu", dtype=torch.long)
+        return torch.tensor([[action]], device="cpu", dtype=torch.long)
     else:
         with torch.no_grad():
             action = policy_net(state).max(1)[1].view(1, 1)
@@ -77,7 +77,7 @@ class memory():
         batch = Transition(*zip(*batch)) #Idk man, this is just magic (unzip)
 
         #Compute all non final states
-        non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device="cpu", dtype=torch.bool)
+        non_final_mask = torch.tensor([s is not None for s in batch.next_state])
         non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
         # Compute all replays at once rather than one by one in a for loop
         state_batch = torch.cat(batch.state)
@@ -89,7 +89,7 @@ class memory():
         state_action_values = policy_net(state_batch).gather(1, action_batch)
 
         # Target net max action
-        next_state_values = torch.zeros(batch_size, device="cpu")
+        next_state_values = torch.zeros(batch_size)
         with torch.no_grad():
             next_state_values[non_final_mask] = target_net(non_final_next_states).max(1).values
         
@@ -121,8 +121,8 @@ if __name__ == "__main__":
 
     nb_states = len(state)
     nb_actions = env.action_space.n
-    print(nb_states, nb_actions)
-
+    #print(nb_states, nb_actions)
+    # have two networks but only using the policy one?
     policy_net = DQN(nb_states, nb_actions).to("cpu")
     target_net = DQN(nb_states, nb_actions).to("cpu")
     target_net.load_state_dict(policy_net.state_dict())
@@ -138,16 +138,16 @@ if __name__ == "__main__":
     for e in range(nb_episodes):
         mem_index = 0
         state, info = env.reset()
-        print("State:", state[0], (1, nb_states))
-        print("----",state)
+        #print("State:", state[0], (1, nb_states))
+        #print("----",state)
         state = torch.tensor(state, dtype=torch.float32, device="cpu").unsqueeze(0)
         done = False
 
-        if e % 5 == 0:
+        #if e % 5 == 0:
 
-                print("---\n" * 5)
-                print(scores)
-                print("---\n" * 5)
+                #print("---\n" * 5)
+                #print(scores)
+                #print("---\n" * 5)
 
         for time in range(501): # Avoid unlimited cartpole, could use while not done for other environments
             action_taken = action(state)
@@ -179,9 +179,9 @@ if __name__ == "__main__":
             # Update target net
             target_net_state_dict = target_net.state_dict()
             policy_net_state_dict = policy_net.state_dict()
-            # for key in target_net_state_dict:
-            #     target_net_state_dict[key] = policy_net_state_dict[key]* tau + target_net_state_dict[key] * (1 - tau)
-            target_net.load_state_dict(policy_net_state_dict)
+            for key in target_net_state_dict:
+                 target_net_state_dict[key] = policy_net_state_dict[key]* tau + target_net_state_dict[key] * (1 - tau)
+            target_net.load_state_dict(target_net_state_dict)
             
             if done or time == 500:
                 episode_durations.append(time + 1)
