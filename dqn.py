@@ -51,7 +51,7 @@ def action(state):
     else:
         with torch.no_grad():
             action = policy_net(state).max(1)[1].view(1, 1)
-            print("Predicted action: ", action)
+            print("Predicted action: ", action.squeeze(0).item())
             return action
         
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
@@ -99,7 +99,7 @@ class memory():
 nb_episodes = 1000
 capacity = 1000
 epsilon = 1.0
-epsilon_decay = 0.9995
+epsilon_decay = 0.9998
 min_epsilon = 0.01 
 discount = 0.99 # Discourage taking longer than needed, doesnt really matter for cartpole since no good "end"
 tau = 0.005
