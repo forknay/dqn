@@ -2,8 +2,8 @@
 
 ### Implemented
 
-Standard DQN <br>
-DDQN
+- Standard DQN <br>
+- DDQN
 
 ### TO-DO-LIST
 
