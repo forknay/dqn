@@ -7,6 +7,11 @@
 
 ### TO-DO-LIST
 
+- Separate plotting function into another file <br>
+- Save weight parameters into text file <br>
+- Add hyperparameters on top (reorganize main file) <br>
+
+
 - Prioritized Replay <br>
 - Dueling networks <br>
 - Multi-step Learning <br>
