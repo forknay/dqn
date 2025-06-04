@@ -2,7 +2,7 @@ import random
 import gym
 import numpy as np
 import keras
-from dqn import DQN
+from tensorflow.dqn import DQN
 
 nb_episodes = 1000
 

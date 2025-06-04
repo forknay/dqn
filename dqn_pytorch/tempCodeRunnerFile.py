@@ -1,1 +1,0 @@
-        optimizer.zero_grad()

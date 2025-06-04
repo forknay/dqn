@@ -1,7 +1,5 @@
-numpy=="1.26.4"
-gym
-tensorflow
-keras
+numpy
+gymnasium
 matplotlib
 torch
 ipython

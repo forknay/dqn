@@ -1,1 +1,0 @@
-plt.plot(np.polyfit(x, y, 1))
