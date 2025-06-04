@@ -1,11 +1,11 @@
-PyTorch implementation of Rainbow DQN
+##### PyTorch implementation of Rainbow DQN
 
-###Implemented
+### Implemented
 
 Standard DQN
 DDQN
 
-###TO-DO-LIST
+### TO-DO-LIST
 
 Prioritized Replay
 Dueling networks
