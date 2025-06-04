@@ -2,14 +2,8 @@ import random
 import gymnasium as gym
 import numpy as np
 import torch
-import matplotlib
 import matplotlib.pyplot as plt
 from collections import namedtuple
-
-
-is_ipython = 'inline' in matplotlib.get_backend()
-if is_ipython:
-    from IPython import display
 
 plt.ion()
 
@@ -32,12 +26,7 @@ def plot_durations(show_result=False):
         plt.plot(means.numpy())
 
     plt.pause(0.001)  # pause a bit so that plots are updated
-    if is_ipython:
-        if not show_result:
-            display.display(plt.gcf())
-            display.clear_output(wait=True)
-        else:
-            display.display(plt.gcf())
+    
 
 
 
