@@ -2,13 +2,13 @@
 
 ### Implemented
 
-Standard DQN
+Standard DQN <br>
 DDQN
 
 ### TO-DO-LIST
 
-Prioritized Replay
-Dueling networks
-Multi-step Learning
-Distributional RL
-Noisy Nets
+- Prioritized Replay <br>
+- Dueling networks <br>
+- Multi-step Learning <br>
+- Distributional RL <br>
+- Noisy Nets
