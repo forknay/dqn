@@ -2,6 +2,7 @@ import random
 import gymnasium as gym
 import numpy as np
 import torch
+import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from collections import namedtuple
 
@@ -27,8 +28,14 @@ def plot_durations(show_result=False):
 
     plt.pause(0.001)  # pause a bit so that plots are updated
     
-
-
+# Hyperparameters
+N_EPISODES = 1000
+CAPACITY = 1000
+EPS = 1.0
+EPS_DECAY = 0.9998
+MIN_EPS = 0.01
+DISCOUNT = 0.99
+TAU = 0.005
 
 class DQN(torch.nn.Module):
     def __init__(self, nb_states, nb_actions):
@@ -39,15 +46,15 @@ class DQN(torch.nn.Module):
         self.layer3 = torch.nn.Linear(24, nb_actions)
 
     def forward(self, x):
-        x = torch.nn.functional.relu(self.layer1(x))
-        x = torch.nn.functional.relu(self.layer2(x))
+        x = F.relu(self.layer1(x))
+        x = F.relu(self.layer2(x))
         return self.layer3(x) 
     
 def action(state):
     action = env.action_space.sample()  # Random action
     print("Random action: ", action)
-    if np.random.rand() <= epsilon:
-        return torch.tensor([[action]], device="cpu", dtype=torch.long)
+    if np.random.rand() <= EPS:
+        return torch.tensor([[action]])
     else:
         with torch.no_grad():
             action = policy_net(state).max(1)[1].view(1, 1)
@@ -92,17 +99,7 @@ class memory():
         # torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
         optimizer.step()
 
-        
-        
 
-    
-nb_episodes = 1000
-capacity = 1000
-epsilon = 1.0
-epsilon_decay = 0.9998
-min_epsilon = 0.01 
-discount = 0.99 # Discourage taking longer than needed, doesnt really matter for cartpole since no good "end"
-tau = 0.005
 
 if __name__ == "__main__":
     env = gym.make('CartPole-v1')
@@ -110,26 +107,25 @@ if __name__ == "__main__":
 
     nb_states = len(state)
     nb_actions = env.action_space.n
-    #print(nb_states, nb_actions)
-    # have two networks but only using the policy one?
-    policy_net = DQN(nb_states, nb_actions).to("cpu")
-    target_net = DQN(nb_states, nb_actions).to("cpu")
+    policy_net = DQN(nb_states, nb_actions)
+    target_net = DQN(nb_states, nb_actions)
     target_net.load_state_dict(policy_net.state_dict())
 
     optimizer = torch.optim.Adam(policy_net.parameters(), lr=0.001 , amsgrad=True)
-    mem = memory(capacity)
+    mem = memory(CAPACITY)
 
     batch_size = 32
     scores = []
+    epsilon = EPS
 
     #fp = open("results.txt", "a")
 
-    for e in range(nb_episodes):
+    for ep in range(N_EPISODES):
         mem_index = 0
         state, info = env.reset()
         #print("State:", state[0], (1, nb_states))
         #print("----",state)
-        state = torch.tensor(state, dtype=torch.float32, device="cpu").unsqueeze(0)
+        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
         done = False
 
         #if e % 5 == 0:
@@ -150,11 +146,11 @@ if __name__ == "__main__":
             if done:
                 reward = -10
             
-            reward = torch.tensor([reward], device="cpu")
+            reward = torch.tensor([reward], dtype=torch.float32)
             if done:
                 next_state = None
             else:
-                next_state = torch.tensor(next_state, dtype=torch.float32, device="cpu").unsqueeze(0)
+                next_state = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0)
             
             mem.memory.insert(mem_index % (mem.capacity-1), (state, action_taken, next_state, reward))
             mem_index += 1
@@ -163,20 +159,20 @@ if __name__ == "__main__":
             if len(mem.memory) > batch_size:
                 #print("Replay -")
                 mem.replay(batch_size)
-                epsilon = max(epsilon * epsilon_decay, min_epsilon)
+                epsilon = max(epsilon * EPS_DECAY, MIN_EPS)
 
             # Update target net
             target_net_state_dict = target_net.state_dict()
             policy_net_state_dict = policy_net.state_dict()
             for key in target_net_state_dict:
-                 target_net_state_dict[key] = policy_net_state_dict[key]* tau + target_net_state_dict[key] * (1 - tau)
+                 target_net_state_dict[key] = policy_net_state_dict[key]* TAU + target_net_state_dict[key] * (1 - TAU)
             target_net.load_state_dict(target_net_state_dict)
             
             if done or time == 500:
                 episode_durations.append(time + 1)
                 plot_durations()
                 print("---\n" * 5)
-                print("episode: {}/{}, score: {}, e: {:.2}".format(e, nb_episodes, time, epsilon))
+                print("episode: {}/{}, score: {}, e: {:.2}".format(ep, N_EPISODES, time, epsilon))
                 print(scores)
                 print("---\n" * 5)
                 scores.append(time)
