@@ -1,5 +1,6 @@
 ##### PyTorch implementation of Rainbow DQN
 
+![Training Plot](dqn_cartpole.png)
 ### Implemented
 
 - Standard DQN <br>
