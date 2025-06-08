@@ -4,7 +4,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-from collections import namedtuple
 
 plt.ion()
 
@@ -131,35 +130,21 @@ if __name__ == "__main__":
 
     for ep in range(N_EPISODES):
         state, info = env.reset()
-        #print("State:", state[0], (1, nb_states))
-        #print("----",state)
         state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
         done = False
-
-        #if e % 5 == 0:
-
-                #print("---\n" * 5)
-                #print(scores)
-                #print("---\n" * 5)
 
         for time in range(501): # Avoid unlimited cartpole, could use while not done for other environments
             action_taken = action(state, epsilon)
             next_state, reward, done, _, __ = env.step(action_taken.item()) # Execute step
-            #print("---")
-            #print("Reward:", reward, "Done:", done)
-            #print("Next state:", next_state, (1, nb_states))
-            #print("---")
-             # Penalize falling off the cart
             
-            if done:
-                reward = -10
-            
-            reward = torch.tensor([reward], dtype=torch.float32)
             if done:
                 next_state = None
+                reward = -10
             else:
                 next_state = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0)
-            
+
+            reward = torch.tensor([reward], dtype=torch.float32) #[1]
+
             mem.memory.insert(mem_index % (mem.capacity-1), (state, action_taken, next_state, reward))
             mem_index += 1
 
