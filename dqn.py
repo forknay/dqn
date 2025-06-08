@@ -68,12 +68,12 @@ def action(state, epsilon):
     action = env.action_space.sample()  # ()
     print("Random action: ", action)
     if torch.rand(1).item() <= epsilon:
-        return torch.tensor([[action]], dtype=torch.long) # (1, 1)
+        return torch.tensor([action], dtype=torch.long) # (1,)
     else:
         with torch.no_grad():
-            action = policy_net(state).max(1)[1].view(1, 1) # (1, 1)
-            print("Predicted action: ", action.squeeze(0).item())
-            return action
+            action = policy_net(state).max(0)[1] # (1,)
+            print("Predicted action: ", action)
+            return torch.tensor([action], dtype=torch.long)
         
 class memory():
     def __init__(self, capacity):
@@ -81,14 +81,14 @@ class memory():
         self.memory = []
 
     def replay(self, batch_size):
-        batch = random.sample(self.memory, batch_size) # (BATCH_SIZE, (state, action, next_state, reward))
+        batch = random.sample(self.memory, batch_size) # (batch_size, (state, action, next_state, reward))
         states, actions, next_states, rewards = zip(*batch) # Separate the diff components into lists (for each transition)
         #Compute all non final states
-        non_final_mask = torch.tensor([s is not None for s in next_states], dtype=torch.bool) 
-        non_final_next_states = torch.cat([s for s in next_states if s is not None])
+        non_final_mask = torch.tensor([s is not None for s in next_states], dtype=torch.bool)  # (batch_size,)
+        non_final_next_states = torch.stack([s for s in next_states if s is not None]) # (N, nb_states)
         # Compute all replays at once rather than one by one in a for loop
-        state_batch = torch.cat(states)
-        action_batch = torch.cat(actions)
+        state_batch = torch.stack(states)
+        action_batch = torch.stack(actions)
         reward_batch = torch.cat(rewards)
         
         # Gather values for actions taken over dimension 1 (action dim), for each action in action_batch
@@ -102,7 +102,7 @@ class memory():
         expected_state_action_values = (next_state_values * DISCOUNT) + reward_batch # That one Q formula 
 
        #Compute loss for graph
-        loss = torch.nn.functional.mse_loss(state_action_values, expected_state_action_values.unsqueeze(1)) # (BATCH_SIZE, 1) -> ()
+        loss = torch.nn.functional.mse_loss(state_action_values, expected_state_action_values.unsqueeze(1)) # (batch_size, 1) -> ()
 
         optimizer.zero_grad() # Clear gradients
         loss.backward()
@@ -135,17 +135,18 @@ if __name__ == "__main__":
     # Training loop
     for ep in range(N_EPISODES):
         state, info = env.reset()
-        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0) # (1, nb_states)
+        state = torch.tensor(state, dtype=torch.float32) # (nb_states,)
 
         for time in range(501): # Avoid unlimited cartpole, could use while not done for other environments
-            action_taken = action(state, epsilon) # (1, 1)
+            action_taken = action(state, epsilon) # (1,)
+            print("Action taken: ", action_taken)
             next_state, reward, done, _, __ = env.step(action_taken.item()) # Execute step
-            
+
             if done:
                 next_state = None
                 reward = -10
             else:
-                next_state = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0) # (1, nb_states)
+                next_state = torch.tensor(next_state, dtype=torch.float32) # (nb_states,)
 
             reward = torch.tensor([reward], dtype=torch.float32) #(1,)
 
