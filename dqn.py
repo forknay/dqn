@@ -135,7 +135,7 @@ if __name__ == "__main__":
     # Training loop
     for ep in range(N_EPISODES):
         state, info = env.reset()
-        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0) # (1, action_dim)
+        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0) # (1, nb_states)
 
         for time in range(501): # Avoid unlimited cartpole, could use while not done for other environments
             action_taken = action(state, epsilon) # (1, 1)
@@ -150,7 +150,7 @@ if __name__ == "__main__":
             reward = torch.tensor([reward], dtype=torch.float32) #(1,)
 
             # Store transition in memory
-            mem.memory.insert(mem_index % (mem.capacity-1), (state, action_taken, next_state, reward))
+            mem.memory.insert(mem_index % mem.capacity, (state, action_taken, next_state, reward))
             mem_index += 1
             state = next_state
 
