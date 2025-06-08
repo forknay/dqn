@@ -3,6 +3,7 @@ import gymnasium as gym
 import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
+from collections import deque
 
 plt.ion()
 
@@ -68,28 +69,35 @@ def action(state, epsilon):
     action = env.action_space.sample()  # ()
     print("Random action: ", action)
     if torch.rand(1).item() <= epsilon:
-        return torch.tensor([action], dtype=torch.long) # (1,)
+        return action
     else:
         with torch.no_grad():
-            action = policy_net(state).max(0)[1] # (1,)
+            action = policy_net(state).max(0)[1] # ()
             print("Predicted action: ", action)
-            return torch.tensor([action], dtype=torch.long)
+            return action.item()
         
-class memory():
+class ReplayMemory():
     def __init__(self, capacity):
         self.capacity = capacity
-        self.memory = []
+        self.memory = deque(maxlen=capacity) 
 
+    def __len__(self):
+        return len(self.memory)
+    
     def replay(self, batch_size):
         batch = random.sample(self.memory, batch_size) # (batch_size, (state, action, next_state, reward))
         states, actions, next_states, rewards = zip(*batch) # Separate the diff components into lists (for each transition)
         #Compute all non final states
         non_final_mask = torch.tensor([s is not None for s in next_states], dtype=torch.bool)  # (batch_size,)
         non_final_next_states = torch.stack([s for s in next_states if s is not None]) # (N, nb_states)
+        # Return if no non-final states
+        if non_final_next_states.shape[0] == 0:
+            return
+        
         # Compute all replays at once rather than one by one in a for loop
         state_batch = torch.stack(states)
         action_batch = torch.stack(actions)
-        reward_batch = torch.cat(rewards)
+        reward_batch = torch.tensor(rewards)
         
         # Gather values for actions taken over dimension 1 (action dim), for each action in action_batch
         state_action_values = policy_net(state_batch).gather(1, action_batch)
@@ -126,7 +134,7 @@ if __name__ == "__main__":
     # Initialize target net optimizer (no need for target since it "follows" policy)
     optimizer = torch.optim.Adam(policy_net.parameters(), lr=LR , amsgrad=True)
 
-    mem = memory(CAPACITY)
+    mem = ReplayMemory(CAPACITY)
     mem_index = 0
     epsilon = EPS
     episode_durations = []
@@ -140,7 +148,7 @@ if __name__ == "__main__":
         for time in range(501): # Avoid unlimited cartpole, could use while not done for other environments
             action_taken = action(state, epsilon) # (1,)
             print("Action taken: ", action_taken)
-            next_state, reward, done, _, __ = env.step(action_taken.item()) # Execute step
+            next_state, reward, done, _, __ = env.step(action_taken) # Execute step
 
             if done:
                 next_state = None
@@ -148,14 +156,12 @@ if __name__ == "__main__":
             else:
                 next_state = torch.tensor(next_state, dtype=torch.float32) # (nb_states,)
 
-            reward = torch.tensor([reward], dtype=torch.float32) #(1,)
-
             # Store transition in memory
-            mem.memory.insert(mem_index % mem.capacity, (state, action_taken, next_state, reward))
+            mem.memory.append((state, torch.tensor([action_taken], dtype=torch.long), next_state, float(reward)))
             mem_index += 1
             state = next_state
 
-            if len(mem.memory) >= BATCH_SIZE:
+            if len(mem) >= BATCH_SIZE:
                 mem.replay(BATCH_SIZE)
                 
             # Soft-update/follow target net
