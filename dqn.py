@@ -39,6 +39,7 @@ EPS_DECAY = 0.995
 TAU = 0.005
 # Noisy Nets
 SIGMA = 0.017
+
 class NoisyLinear(torch.nn.Module):
     def __init__(self, in_features, out_features, sigma = SIGMA):
         super().__init__()
@@ -64,7 +65,7 @@ class DQN(torch.nn.Module):
         return self.layer3(x) 
     
 def action(state, epsilon):
-    action = env.action_space.sample()  # 1
+    action = env.action_space.sample()  # ()
     print("Random action: ", action)
     if torch.rand() <= epsilon:
         return torch.tensor([[action]], dtype=torch.long) # (1, 1)
@@ -83,24 +84,25 @@ class memory():
         batch = random.sample(self.memory, batch_size) # (BATCH_SIZE, (state, action, next_state, reward))
         states, actions, next_states, rewards = zip(*batch) # Separate the diff components into lists (for each transition)
         #Compute all non final states
-        non_final_mask = torch.tensor([s is not None for s in next_states], dtype=torch.bool)
+        non_final_mask = torch.tensor([s is not None for s in next_states], dtype=torch.bool) 
         non_final_next_states = torch.cat([s for s in next_states if s is not None])
         # Compute all replays at once rather than one by one in a for loop
         state_batch = torch.cat(states)
         action_batch = torch.cat(actions)
         reward_batch = torch.cat(rewards)
         
-        # Policy net preferred action
+        # Gather values for actions taken over dimension 1 (action dim), for each action in action_batch
         state_action_values = policy_net(state_batch).gather(1, action_batch)
 
         # Target net max action
         next_state_values = torch.zeros(batch_size)
         with torch.no_grad():
+            # Returns max value for each non-final state
             next_state_values[non_final_mask] = target_net(non_final_next_states).max(1).values
-        expected_state_action_values = (next_state_values * DISCOUNT) + reward_batch 
+        expected_state_action_values = (next_state_values * DISCOUNT) + reward_batch # That one Q formula 
 
        #Compute loss for graph
-        loss = torch.nn.functional.mse_loss(state_action_values, expected_state_action_values.unsqueeze(1))
+        loss = torch.nn.functional.mse_loss(state_action_values, expected_state_action_values.unsqueeze(1)) # (BATCH_SIZE, 1) -> ()
 
         optimizer.zero_grad() # Clear gradients
         loss.backward()
