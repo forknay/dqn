@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 
 plt.ion()
 
-episode_durations = []
 def plot_durations(show_result=False):
     plt.figure(1)
     durations_t = torch.tensor(episode_durations, dtype=torch.float)
@@ -69,7 +68,7 @@ def action(state, epsilon):
     action = env.action_space.sample()  # Random action
     print("Random action: ", action)
     if np.random.rand() <= epsilon:
-        return torch.tensor([[action]])
+        return torch.tensor([[action]], dtype=torch.long)
     else:
         with torch.no_grad():
             action = policy_net(state).max(1)[1].view(1, 1)
@@ -85,7 +84,7 @@ class memory():
         batch = random.sample(self.memory, batch_size) # (BATCH_SIZE, (state, action, next_state, reward))
         states, actions, next_states, rewards = zip(*batch)
         #Compute all non final states
-        non_final_mask = torch.tensor([s is not None for s in next_states])
+        non_final_mask = torch.tensor([s is not None for s in next_states], dtype=torch.bool)
         non_final_next_states = torch.cat([s for s in next_states if s is not None])
         # Compute all replays at once rather than one by one in a for loop
         state_batch = torch.cat(states)
@@ -115,63 +114,62 @@ if __name__ == "__main__":
     env = gym.make('CartPole-v1')
     state, info = env.reset() 
 
-    nb_states = len(state)
-    nb_actions = env.action_space.n
+    nb_states = len(state) # Number of input variables (4 for CartPole)
+    nb_actions = env.action_space.n # Number of possible actions (2 for CartPole)
+
+    # Build policy and target networks
     policy_net = DQN(nb_states, nb_actions)
     target_net = DQN(nb_states, nb_actions)
+    # Sync target net with policy net
     target_net.load_state_dict(policy_net.state_dict())
-
+    # Initialize target net optimizer (no need for target since it "follows" policy)
     optimizer = torch.optim.Adam(policy_net.parameters(), lr=LR , amsgrad=True)
+
     mem = memory(CAPACITY)
-
-    scores = []
-    epsilon = EPS
     mem_index = 0
+    epsilon = EPS
+    episode_durations = []
+    scores = []
 
+    # Training loop
     for ep in range(N_EPISODES):
         state, info = env.reset()
-        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
-        done = False
+        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0) # (1, action_dim)
 
         for time in range(501): # Avoid unlimited cartpole, could use while not done for other environments
-            action_taken = action(state, epsilon)
+            action_taken = action(state, epsilon) # (1, 1)
             next_state, reward, done, _, __ = env.step(action_taken.item()) # Execute step
             
             if done:
                 next_state = None
                 reward = -10
             else:
-                next_state = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0)
+                next_state = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0) # (1, nb_states)
 
-            reward = torch.tensor([reward], dtype=torch.float32) #[1]
+            reward = torch.tensor([reward], dtype=torch.float32) #(1,)
 
+            # Store transition in memory
             mem.memory.insert(mem_index % (mem.capacity-1), (state, action_taken, next_state, reward))
             mem_index += 1
-
             state = next_state
-            if len(mem.memory) > BATCH_SIZE:
-                #print("Replay -")
+
+            if len(mem.memory) >= BATCH_SIZE:
                 mem.replay(BATCH_SIZE)
                 
-            # Update target net
+            # Soft-update/follow target net
             target_net_state_dict = target_net.state_dict()
             policy_net_state_dict = policy_net.state_dict()
             for key in target_net_state_dict:
+                 # Keeps mostly target weights intact, but slowly follows policy net
                  target_net_state_dict[key] = policy_net_state_dict[key]* TAU + target_net_state_dict[key] * (1 - TAU)
             target_net.load_state_dict(target_net_state_dict)
-            
+            # Break at the end of episode or if time limit reached
             if done or time == 500:
                 episode_durations.append(time + 1)
                 plot_durations()
-                print("---\n" * 5)
-                print("episode: {}/{}, score: {}, e: {:.2}".format(ep, N_EPISODES, time, epsilon))
-                print(scores)
-                print("---\n" * 5)
                 scores.append(time)
-
-                #fp.write(str(time) + "\n")
                 break
-            
+        # Decay epsilon every episode
         epsilon = max(epsilon * EPS_DECAY, MIN_EPS)
 
 print("Done")
