@@ -77,24 +77,21 @@ def action(state, epsilon):
             print("Predicted action: ", action.squeeze(0).item())
             return action
         
-Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
-
 class memory():
     def __init__(self, capacity):
         self.capacity = capacity
         self.memory = []
 
     def replay(self, batch_size):
-        batch = random.sample(self.memory, batch_size)
-        batch = Transition(*zip(*batch)) #Idk man, this is just magic (unzip)
+        batch = random.sample(self.memory, batch_size) # (BATCH_SIZE, (state, action, next_state, reward))
+        states, actions, next_states, rewards = zip(*batch)
         #Compute all non final states
-        non_final_mask = torch.tensor([s is not None for s in batch.next_state])
-        non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
+        non_final_mask = torch.tensor([s is not None for s in next_states])
+        non_final_next_states = torch.cat([s for s in next_states if s is not None])
         # Compute all replays at once rather than one by one in a for loop
-        state_batch = torch.cat(batch.state)
-        #print("Action batch:", batch.action)
-        action_batch = torch.cat(batch.action)
-        reward_batch = torch.cat(batch.reward)
+        state_batch = torch.cat(states)
+        action_batch = torch.cat(actions)
+        reward_batch = torch.cat(rewards)
         
         # Policy net preferred action
         state_action_values = policy_net(state_batch).gather(1, action_batch)
