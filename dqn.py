@@ -1,6 +1,5 @@
 import random
 import gymnasium as gym
-import numpy as np
 import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
@@ -65,13 +64,13 @@ class DQN(torch.nn.Module):
         return self.layer3(x) 
     
 def action(state, epsilon):
-    action = env.action_space.sample()  # Random action
+    action = env.action_space.sample()  # 1
     print("Random action: ", action)
-    if np.random.rand() <= epsilon:
-        return torch.tensor([[action]], dtype=torch.long)
+    if torch.rand() <= epsilon:
+        return torch.tensor([[action]], dtype=torch.long) # (1, 1)
     else:
         with torch.no_grad():
-            action = policy_net(state).max(1)[1].view(1, 1)
+            action = policy_net(state).max(1)[1].view(1, 1) # (1, 1)
             print("Predicted action: ", action.squeeze(0).item())
             return action
         
@@ -82,7 +81,7 @@ class memory():
 
     def replay(self, batch_size):
         batch = random.sample(self.memory, batch_size) # (BATCH_SIZE, (state, action, next_state, reward))
-        states, actions, next_states, rewards = zip(*batch)
+        states, actions, next_states, rewards = zip(*batch) # Separate the diff components into lists (for each transition)
         #Compute all non final states
         non_final_mask = torch.tensor([s is not None for s in next_states], dtype=torch.bool)
         non_final_next_states = torch.cat([s for s in next_states if s is not None])
@@ -98,12 +97,12 @@ class memory():
         next_state_values = torch.zeros(batch_size)
         with torch.no_grad():
             next_state_values[non_final_mask] = target_net(non_final_next_states).max(1).values
-        expected_state_action_values = (next_state_values * DISCOUNT) + reward_batch
+        expected_state_action_values = (next_state_values * DISCOUNT) + reward_batch 
 
        #Compute loss for graph
         loss = torch.nn.functional.mse_loss(state_action_values, expected_state_action_values.unsqueeze(1))
 
-        optimizer.zero_grad()
+        optimizer.zero_grad() # Clear gradients
         loss.backward()
         # torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
         optimizer.step()
