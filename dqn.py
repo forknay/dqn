@@ -29,18 +29,34 @@ def plot_durations(show_result=False):
     plt.pause(0.001)  # pause a bit so that plots are updated
     
 # Hyperparameters
-N_EPISODES = 1000
-CAPACITY = 1000
-EPS = 1.0
-EPS_DECAY = 0.9998
+N_EPISODES = 500
+CAPACITY = 10000
 MIN_EPS = 0.01
 DISCOUNT = 0.99
+LR = 0.001
+BATCH_SIZE = 32
+# Epsilon-greedy
+EPS = 1.0
+EPS_DECAY = 0.995
+# Double DQN
 TAU = 0.005
+# Noisy Nets
+SIGMA = 0.017
+class NoisyLinear(torch.nn.Module):
+    def __init__(self, in_features, out_features, sigma = SIGMA):
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+
+        self.mu_weight = torch.nn.Parameter(torch.Tensor(out_features, in_features))
+        self.sigma_weight = torch.nn.Parameter(torch.Tensor(out_features, in_features))
+        self.mu_bias = torch.nn.Parameter(torch.Tensor(out_features))
+        self.sigma_bias = torch.nn.Parameter(torch.Tensor(out_features))
+
 
 class DQN(torch.nn.Module):
     def __init__(self, nb_states, nb_actions):
-        super(DQN, self).__init__()
-        
+        super().__init__()
         self.layer1 = torch.nn.Linear(nb_states, 24)
         self.layer2 = torch.nn.Linear(24, 24)
         self.layer3 = torch.nn.Linear(24, nb_actions)
@@ -50,10 +66,10 @@ class DQN(torch.nn.Module):
         x = F.relu(self.layer2(x))
         return self.layer3(x) 
     
-def action(state):
+def action(state, epsilon):
     action = env.action_space.sample()  # Random action
     print("Random action: ", action)
-    if np.random.rand() <= EPS:
+    if np.random.rand() <= epsilon:
         return torch.tensor([[action]])
     else:
         with torch.no_grad():
@@ -71,7 +87,6 @@ class memory():
     def replay(self, batch_size):
         batch = random.sample(self.memory, batch_size)
         batch = Transition(*zip(*batch)) #Idk man, this is just magic (unzip)
-
         #Compute all non final states
         non_final_mask = torch.tensor([s is not None for s in batch.next_state])
         non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
@@ -88,8 +103,7 @@ class memory():
         next_state_values = torch.zeros(batch_size)
         with torch.no_grad():
             next_state_values[non_final_mask] = target_net(non_final_next_states).max(1).values
-        
-        expected_state_action_values = (next_state_values * discount) + reward_batch
+        expected_state_action_values = (next_state_values * DISCOUNT) + reward_batch
 
        #Compute loss for graph
         loss = torch.nn.functional.mse_loss(state_action_values, expected_state_action_values.unsqueeze(1))
@@ -111,17 +125,14 @@ if __name__ == "__main__":
     target_net = DQN(nb_states, nb_actions)
     target_net.load_state_dict(policy_net.state_dict())
 
-    optimizer = torch.optim.Adam(policy_net.parameters(), lr=0.001 , amsgrad=True)
+    optimizer = torch.optim.Adam(policy_net.parameters(), lr=LR , amsgrad=True)
     mem = memory(CAPACITY)
 
-    batch_size = 32
     scores = []
     epsilon = EPS
-
-    #fp = open("results.txt", "a")
+    mem_index = 0
 
     for ep in range(N_EPISODES):
-        mem_index = 0
         state, info = env.reset()
         #print("State:", state[0], (1, nb_states))
         #print("----",state)
@@ -135,7 +146,7 @@ if __name__ == "__main__":
                 #print("---\n" * 5)
 
         for time in range(501): # Avoid unlimited cartpole, could use while not done for other environments
-            action_taken = action(state)
+            action_taken = action(state, epsilon)
             next_state, reward, done, _, __ = env.step(action_taken.item()) # Execute step
             #print("---")
             #print("Reward:", reward, "Done:", done)
@@ -156,9 +167,9 @@ if __name__ == "__main__":
             mem_index += 1
 
             state = next_state
-            if len(mem.memory) > batch_size:
+            if len(mem.memory) > BATCH_SIZE:
                 #print("Replay -")
-                mem.replay(batch_size)
+                mem.replay(BATCH_SIZE)
                 epsilon = max(epsilon * EPS_DECAY, MIN_EPS)
 
             # Update target net
