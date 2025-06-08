@@ -67,7 +67,7 @@ class DQN(torch.nn.Module):
 def action(state, epsilon):
     action = env.action_space.sample()  # ()
     print("Random action: ", action)
-    if torch.rand() <= epsilon:
+    if torch.rand(1).item() <= epsilon:
         return torch.tensor([[action]], dtype=torch.long) # (1, 1)
     else:
         with torch.no_grad():
