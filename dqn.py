@@ -25,7 +25,7 @@ def plot_durations(show_result=False):
         plt.plot(means.numpy())
 
     plt.pause(0.001)  # pause a bit so that plots are updated
-    
+
 # Hyperparameters
 N_EPISODES = 500
 CAPACITY = 10000
@@ -84,6 +84,9 @@ class ReplayMemory():
     def __len__(self):
         return len(self.memory)
     
+    def push(self, transition):
+        self.memory.append(transition)
+
     def replay(self, batch_size):
         batch = random.sample(self.memory, batch_size) # (batch_size, (state, action, next_state, reward))
         states, actions, next_states, rewards = zip(*batch) # Separate the diff components into lists (for each transition)
@@ -95,9 +98,9 @@ class ReplayMemory():
             return
         
         # Compute all replays at once rather than one by one in a for loop
-        state_batch = torch.stack(states)
-        action_batch = torch.stack(actions)
-        reward_batch = torch.tensor(rewards)
+        state_batch = torch.stack(states) # (batch_size, nb_states)
+        action_batch = torch.tensor(actions).unsqueeze(1) # (batch_size,) -> (batch_size, 1)
+        reward_batch = torch.tensor(rewards) # (batch_size,)
         
         # Gather values for actions taken over dimension 1 (action dim), for each action in action_batch
         state_action_values = policy_net(state_batch).gather(1, action_batch)
@@ -135,7 +138,6 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(policy_net.parameters(), lr=LR , amsgrad=True)
 
     mem = ReplayMemory(CAPACITY)
-    mem_index = 0
     epsilon = EPS
     episode_durations = []
     scores = []
@@ -157,8 +159,7 @@ if __name__ == "__main__":
                 next_state = torch.tensor(next_state, dtype=torch.float32) # (nb_states,)
 
             # Store transition in memory
-            mem.memory.append((state, torch.tensor([action_taken], dtype=torch.long), next_state, float(reward)))
-            mem_index += 1
+            mem.push((state, action_taken, next_state, float(reward)))
             state = next_state
 
             if len(mem) >= BATCH_SIZE:
