@@ -152,8 +152,7 @@ if __name__ == "__main__":
             if len(mem.memory) > BATCH_SIZE:
                 #print("Replay -")
                 mem.replay(BATCH_SIZE)
-                epsilon = max(epsilon * EPS_DECAY, MIN_EPS)
-
+                
             # Update target net
             target_net_state_dict = target_net.state_dict()
             policy_net_state_dict = policy_net.state_dict()
@@ -172,6 +171,9 @@ if __name__ == "__main__":
 
                 #fp.write(str(time) + "\n")
                 break
+            
+        epsilon = max(epsilon * EPS_DECAY, MIN_EPS)
+
 print("Done")
 plot_durations(show_result=True)
 plt.ioff()
