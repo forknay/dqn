@@ -67,13 +67,13 @@ class DQN(torch.nn.Module):
     
 def action(state, epsilon):
     action = env.action_space.sample()  # ()
-    print("Random action: ", action)
+    #print("Random action: ", action)
     if torch.rand(1).item() <= epsilon:
         return action
     else:
         with torch.no_grad():
             action = policy_net(state).max(0)[1] # ()
-            print("Predicted action: ", action)
+            #print("Predicted action: ", action)
             return action.item()
         
 class ReplayMemory():
@@ -149,7 +149,7 @@ if __name__ == "__main__":
 
         for time in range(501): # Avoid unlimited cartpole, could use while not done for other environments
             action_taken = action(state, epsilon) # (1,)
-            print("Action taken: ", action_taken)
+            #print("Action taken: ", action_taken)
             next_state, reward, done, _, __ = env.step(action_taken) # Execute step
 
             if done:
@@ -183,6 +183,7 @@ if __name__ == "__main__":
 
 print("Done")
 plot_durations(show_result=True)
+plt.savefig('dqn_cartpole.png')
 plt.ioff()
 plt.show()
 
